@@ -4,7 +4,7 @@ import sqlite3
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# ------------------ يجب أن تكون أول دالة Streamlit ------------------
+# ------------------ إعداد صفحة التطبيق ------------------
 st.set_page_config(page_title="محفظتي السعودية", page_icon="💼", layout="wide")
 
 # ------------------ تحميل رموز الأسهم من ملف CSV ------------------
@@ -60,7 +60,7 @@ def update_portfolio(symbol, shares, avg_price):
             c.execute("INSERT INTO portfolio (symbol, shares, avg_price) VALUES (?, ?, ?)", (symbol, shares, avg_price))
     conn.commit()
 
-# ------------------ البيانات من yfinance ------------------
+# ------------------ جلب بيانات الأسهم ------------------
 @st.cache_data(ttl=900)
 def get_stock_info(symbol):
     try:
@@ -68,9 +68,11 @@ def get_stock_info(symbol):
         info = stock.info
         name = info.get('longName', 'غير معروف')
         price = info.get('previousClose', None)
+        if price is None:
+            return None, None
         return name, price
     except:
-        return "غير معروف", None
+        return None, None
 
 @st.cache_data(ttl=900)
 def get_price_history(symbol, period="3mo"):
@@ -80,7 +82,7 @@ def get_price_history(symbol, period="3mo"):
     except:
         return pd.DataFrame()
 
-# ------------------ واجهة Streamlit ------------------
+# ------------------ واجهة التطبيق ------------------
 st.title("📈 محاكي محفظة الأسهم السعودية")
 st.caption("تابع، اشترِ، وبِع أسهم السوق السعودي بطريقة تفاعلية")
 
@@ -92,19 +94,31 @@ with tabs[0]:
     if not all_symbols:
         st.warning("لم يتم تحميل أي رموز أسهم من الملف.")
     else:
+        invalid_symbols = []
+        valid_count = 0
         for sym in all_symbols:
             name, price = get_stock_info(sym)
-            col1, col2 = st.columns([1, 3])
-            col1.markdown(f"**{sym}**")
-            col2.markdown(f"**{name}** — السعر: `{price if price else 'غير متوفر'} ريال`")
+            if name and price:
+                col1, col2 = st.columns([1, 3])
+                col1.markdown(f"**{sym}**")
+                col2.markdown(f"**{name}** — السعر: `{price:.2f} ريال`")
+                valid_count += 1
+            else:
+                invalid_symbols.append(sym)
+        if valid_count == 0:
+            st.warning("لا توجد رموز صالحة للعرض.")
+        elif invalid_symbols:
+            st.info(f"⚠️ تم تجاهل {len(invalid_symbols)} رمز غير مدعوم: {', '.join(invalid_symbols)}")
 
 # ------------------ تبويب الرسم البياني ------------------
 with tabs[1]:
     st.header("📊 الرسم البياني للسعر")
-    if not all_symbols:
-        st.warning("لا توجد رموز أسهم للعرض.")
+    valid_symbols = [sym for sym in all_symbols if get_stock_info(sym)[1] is not None]
+
+    if not valid_symbols:
+        st.warning("لا توجد رموز أسهم صالحة للعرض.")
     else:
-        symbol_chart = st.selectbox("اختر سهمًا", all_symbols)
+        symbol_chart = st.selectbox("اختر سهمًا", valid_symbols)
         hist = get_price_history(symbol_chart)
         if hist.empty:
             st.warning("لا توجد بيانات لهذا السهم.")
@@ -114,14 +128,10 @@ with tabs[1]:
 # ------------------ تبويب المحفظة ------------------
 with tabs[2]:
     st.header("📊 محفظتي")
-
-    # الرصيد الحالي
     balance = get_balance()
     st.success(f"💰 رصيدك الحالي: {balance:,.2f} ريال")
 
-    # بيانات المحفظة
     portfolio = get_portfolio()
-
     if portfolio.empty:
         st.info("📭 المحفظة فارغة حالياً")
     else:
@@ -133,9 +143,8 @@ with tabs[2]:
             symbol = row['symbol']
             shares = row['shares']
             avg_price = row['avg_price']
-
-            # جلب السعر الحالي
             current_price = get_stock_info(symbol)[1]
+
             if current_price:
                 market_value = shares * current_price
                 cost_value = shares * avg_price
@@ -159,7 +168,6 @@ with tabs[2]:
 
         df = pd.DataFrame(data)
 
-        # بطاقات إحصائيات
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("📦 عدد الشركات", f"{len(df)}")
         col2.metric("📉 تكلفة الشراء", f"{total_cost:,.2f} ريال")
@@ -167,7 +175,6 @@ with tabs[2]:
         profit_total = total_value - total_cost
         col4.metric("💹 الربح / الخسارة", f"{profit_total:,.2f} ريال", delta=f"{(profit_total / total_cost) * 100:.2f}%" if total_cost else "0%")
 
-        # تنسيق ألوان الجدول
         def colorize(val):
             if isinstance(val, (int, float)):
                 if val > 0:
@@ -180,11 +187,9 @@ with tabs[2]:
         st.markdown("### 🧾 تفاصيل المحفظة")
         st.dataframe(styled_df, use_container_width=True)
 
-        # رسم بياني شريطي للقيمة السوقية
         st.markdown("### 📊 توزيع القيمة السوقية حسب الأسهم")
         st.bar_chart(df.set_index("الرمز")["القيمة السوقية"])
 
-        # رسم بياني دائري
         st.markdown("### 🥧 توزيع المحفظة بالنسب المئوية")
         pie_df = df[["الرمز", "القيمة السوقية"]].set_index("الرمز")
         fig = pie_df.plot.pie(
