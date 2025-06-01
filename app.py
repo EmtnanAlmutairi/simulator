@@ -1,4 +1,7 @@
 import streamlit as st
+
+st.set_page_config(page_title="محفظتي السعودية", page_icon="💼", layout="wide")
+import streamlit as st
 import yfinance as yf
 import sqlite3
 import pandas as pd
