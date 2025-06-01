@@ -10,7 +10,7 @@ st.set_page_config(page_title="محفظتي السعودية", page_icon="💼",
 # ------------------ تحميل رموز الأسهم من ملف CSV ------------------
 try:
     df_symbols = pd.read_csv('saudi_stocks.csv')
-    all_symbols = df_symbols['symbol'].dropna().unique().tolist()
+    all_symbols = df_symbols['Symbol'].dropna().unique().tolist()
 except Exception as e:
     st.error(f"فشل تحميل ملف الأسهم: {e}")
     all_symbols = []
