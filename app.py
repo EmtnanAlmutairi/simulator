@@ -3,12 +3,19 @@ import yfinance as yf
 import sqlite3
 import pandas as pd
 
-# ------------------ رموز الأسهم السعودية ------------------
-all_symbols = [
-    "2010.SR", "2222.SR", "1120.SR", "7010.SR", "1050.SR", "2020.SR",
-    "8230.SR", "1211.SR", "2280.SR", "4003.SR", "1810.SR", "6010.SR",
-    "1180.SR", "4300.SR", "3002.SR", "8231.SR", "8010.SR"
-]
+# ------------------ قراءة رموز الأسهم من ملف Excel ------------------
+@st.cache_data(ttl=600)
+def load_symbols_from_excel(filepath):
+    try:
+        df = pd.read_csv(filepath)  # لو الملف بصيغة CSV
+        # لو الملف بصيغة Excel استخدم: pd.read_excel(filepath)
+        # افترضنا أن عمود الرموز اسمه 'symbol'
+        return df['symbol'].tolist()
+    except Exception as e:
+        st.error(f"فشل تحميل ملف الأسهم: {e}")
+        return []
+
+all_symbols = load_symbols_from_excel("saudi_stocks.csv")
 
 # ------------------ إعداد قاعدة البيانات ------------------
 conn = sqlite3.connect("wallet.db", check_same_thread=False)
@@ -79,6 +86,10 @@ def get_price_history(symbol, period="3mo"):
 st.set_page_config(page_title="محفظتي السعودية", page_icon="💼", layout="wide")
 st.title("📈 محاكي محفظة الأسهم السعودية")
 st.caption("تابع، اشترِ، وبِع أسهم السوق السعودي بطريقة تفاعلية")
+
+if not all_symbols:
+    st.error("لم يتم تحميل رموز الأسهم. تأكد من وجود ملف saudi_stocks.csv واحتوائه على عمود 'symbol'.")
+    st.stop()
 
 tabs = st.tabs(["📋 قائمة الأسهم", "📊 الرسم البياني", "💼 محفظتي"])
 
