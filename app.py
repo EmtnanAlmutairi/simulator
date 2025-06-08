@@ -167,36 +167,18 @@ with tabs[2]:
                 })
 
         df = pd.DataFrame(data)
-
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("📦 عدد الشركات", f"{len(df)}")
-        col2.metric("📉 تكلفة الشراء", f"{total_cost:,.2f} ريال")
-        col3.metric("📈 القيمة السوقية", f"{total_value:,.2f} ريال")
-        profit_total = total_value - total_cost
-        col4.metric("💹 الربح / الخسارة", f"{profit_total:,.2f} ريال", delta=f"{(profit_total / total_cost) * 100:.2f}%" if total_cost else "0%")
-
-        def colorize(val):
-            if isinstance(val, (int, float)):
-                if val > 0:
-                    return 'color: green'
-                elif val < 0:
-                    return 'color: red'
-            return ''
-
-        styled_df = df.style.applymap(colorize, subset=["الربح / الخسارة", "الربح %", "التغير %"])
-        st.markdown("### 🧾 تفاصيل المحفظة")
-        st.dataframe(styled_df, use_container_width=True)
+        if not df.empty:
+            subset_cols = ["الربح / الخسارة", "الربح %", "التغير %"]
+            if all(col in df.columns for col in subset_cols):
+                styled_df = df.style.applymap(lambda val: 'color: green' if val > 0 else 'color: red' if val < 0 else '', subset=subset_cols)
+                st.dataframe(styled_df, use_container_width=True)
+            else:
+                st.error("❗ بعض الأعمدة المطلوبة غير موجودة في DataFrame.")
 
         st.markdown("### 📊 توزيع القيمة السوقية حسب الأسهم")
         st.bar_chart(df.set_index("الرمز")["القيمة السوقية"])
 
         st.markdown("### 🥧 توزيع المحفظة بالنسب المئوية")
         pie_df = df[["الرمز", "القيمة السوقية"]].set_index("الرمز")
-        fig = pie_df.plot.pie(
-            y="القيمة السوقية",
-            autopct='%1.1f%%',
-            figsize=(6, 6),
-            legend=False,
-            ylabel=''
-        ).figure
+        fig = pie_df.plot.pie(y="القيمة السوقية", autopct='%1.1f%%', figsize=(6, 6), legend=False, ylabel='').figure
         st.pyplot(fig)
