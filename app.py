@@ -3,7 +3,6 @@ import yfinance as yf
 import sqlite3
 import pandas as pd
 import matplotlib.pyplot as plt
-import re
 
 # ------------------ يجب أن تكون أول دالة Streamlit ------------------
 st.set_page_config(page_title="محفظتي السعودية", page_icon="💼", layout="wide")
@@ -12,9 +11,6 @@ st.set_page_config(page_title="محفظتي السعودية", page_icon="💼",
 try:
     df_symbols = pd.read_csv('saudi_stocks.csv')
     all_symbols = df_symbols['Symbol'].dropna().unique().tolist()
-    
-    # فلترة الرموز غير الصحيحة
-    all_symbols = [sym for sym in all_symbols if re.match(r'^\d{4}\.SR$', sym)]
 except Exception as e:
     st.error(f"فشل تحميل ملف الأسهم: {e}")
     all_symbols = []
@@ -162,6 +158,40 @@ with tabs[2]:
                 })
 
         df = pd.DataFrame(data)
-        st.dataframe(df.style.applymap(lambda val: 'color: red' if val < 0 else 'color: green', subset=["الربح / الخسارة", "الربح %", "التغير %"]), use_container_width=True)
 
+        # بطاقات إحصائيات
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("📦 عدد الشركات", f"{len(df)}")
+        col2.metric("📉 تكلفة الشراء", f"{total_cost:,.2f} ريال")
+        col3.metric("📈 القيمة السوقية", f"{total_value:,.2f} ريال")
+        profit_total = total_value - total_cost
+        col4.metric("💹 الربح / الخسارة", f"{profit_total:,.2f} ريال", delta=f"{(profit_total / total_cost) * 100:.2f}%" if total_cost else "0%")
+
+        # تنسيق ألوان الجدول
+        def colorize(val):
+            if isinstance(val, (int, float)):
+                if val > 0:
+                    return 'color: green'
+                elif val < 0:
+                    return 'color: red'
+            return ''
+
+        styled_df = df.style.applymap(colorize, subset=["الربح / الخسارة", "الربح %", "التغير %"])
+        st.markdown("### 🧾 تفاصيل المحفظة")
+        st.dataframe(styled_df, use_container_width=True)
+
+        # رسم بياني شريطي للقيمة السوقية
+        st.markdown("### 📊 توزيع القيمة السوقية حسب الأسهم")
         st.bar_chart(df.set_index("الرمز")["القيمة السوقية"])
+
+        # رسم بياني دائري
+        st.markdown("### 🥧 توزيع المحفظة بالنسب المئوية")
+        pie_df = df[["الرمز", "القيمة السوقية"]].set_index("الرمز")
+        fig = pie_df.plot.pie(
+            y="القيمة السوقية",
+            autopct='%1.1f%%',
+            figsize=(6, 6),
+            legend=False,
+            ylabel=''
+        ).figure
+        st.pyplot(fig)
